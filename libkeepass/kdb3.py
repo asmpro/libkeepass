@@ -5,12 +5,13 @@ import zlib
 import struct
 import hashlib
 import base64
+import binascii
 
-from crypto import xor, sha256, aes_cbc_decrypt
-from crypto import transform_key, unpad
+from .crypto import xor, sha256, aes_cbc_decrypt
+from .crypto import transform_key, unpad
 
-from common import load_keyfile, stream_unpack
-from common import KDBFile, HeaderDictionary
+from .common import load_keyfile, stream_unpack
+from .common import KDBFile, HeaderDictionary
 
 
 KDB3_SIGNATURE = (0x9AA2D903, 0xB54BFB65)
@@ -100,7 +101,7 @@ class KDB3File(KDBFile):
         combination with the master seed.
         """
         super(KDB3File, self)._make_master_key()
-        #print "masterkey:", ''.join(self.keys).encode('hex')
+        #print "masterkey:", binascii.hexlify(''.join(self.keys).encode())
         #composite = sha256(''.join(self.keys))
         #TODO python-keepass does not support keyfiles, there seems to be a
         # different way to hash those keys in kdb3

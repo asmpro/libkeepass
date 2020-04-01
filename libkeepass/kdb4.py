@@ -6,18 +6,19 @@ import gzip
 import struct
 import hashlib
 import base64
+import binascii
 
 
-from crypto import xor, sha256, aes_cbc_decrypt, aes_cbc_encrypt
-from crypto import transform_key, pad, unpad
+from .crypto import xor, sha256, aes_cbc_decrypt, aes_cbc_encrypt
+from .crypto import transform_key, pad, unpad
 
-from common import load_keyfile, stream_unpack
+from .common import load_keyfile, stream_unpack
 
-from common import KDBFile, HeaderDictionary
-from hbio import HashedBlockIO
+from .common import KDBFile, HeaderDictionary
+from .hbio import HashedBlockIO
 
 
-KDB4_SALSA20_IV = bytes('e830094b97205d2a'.decode('hex'))
+KDB4_SALSA20_IV = binascii.unhexlify(b'e830094b97205d2a')
 KDB4_SIGNATURE = (0x9AA2D903, 0xB54BFB67)
 
 
@@ -105,7 +106,7 @@ class KDB4File(KDBFile):
             field_id = stream_unpack(stream, None, 1, 'b')
             
             # field_id >10 is undefined
-            if not field_id in self.header.fields.values():
+            if not field_id in list(self.header.fields.values()):
                 raise IOError('Unknown header field found.')
             
             # two byte (short) length of field data
@@ -132,7 +133,7 @@ class KDB4File(KDBFile):
         # and version
         header.extend(struct.pack('<hh', 0, 3))
         
-        field_ids = self.header.keys()
+        field_ids = list(self.header.keys())
         field_ids.sort()
         field_ids.reverse() # field_id 0 must be last
         for field_id in field_ids:
@@ -155,7 +156,7 @@ class KDB4File(KDBFile):
 
         # reload out_buffer because we just changed the HeaderHash
         self.protect()
-        self.out_buffer = io.BytesIO(self.pretty_print())
+        self.out_buffer = io.BytesIO(self.pretty_print().encode())
 
         # zip or not according to header setting
         if self.header.CompressionFlags == 1:
@@ -245,7 +246,7 @@ class KDB4File(KDBFile):
         combination with the master seed.
         """
         super(KDB4File, self)._make_master_key()
-        composite = sha256(''.join(self.keys))
+        composite = sha256(b''.join(self.keys))
         tkey = transform_key(composite, 
             self.header.TransformSeed, 
             self.header.TransformRounds)
@@ -254,7 +255,7 @@ class KDB4File(KDBFile):
 
 from lxml import etree
 from lxml import objectify
-from crypto import Salsa20
+from .crypto import Salsa20
 
 class KDBXmlExtension:
     """
@@ -319,13 +320,13 @@ class KDBXmlExtension:
     def pretty_print(self):
         """Return a serialization of the element tree."""
         return etree.tostring(self.obj_root, pretty_print=True, 
-            encoding='utf-8', standalone=True)
+            encoding='utf-8', standalone=True).decode()
 
     def write_to(self, stream):
         """Serialize the element tree to the out-buffer."""
         if self.out_buffer is None:
             self.protect()
-            self.out_buffer = io.BytesIO(self.pretty_print())
+            self.out_buffer = io.BytesIO(self.pretty_print().encode())
 
     def _reset_salsa(self):
         """Clear the salsa buffer and reset algorithm counter to 0."""
@@ -338,7 +339,7 @@ class KDBXmlExtension:
         requested `length`.
         """
         while length > len(self._salsa_buffer):
-            new_salsa = self.salsa.encryptBytes(str(bytearray(64)))
+            new_salsa = self.salsa.encryptBytes(bytes(bytearray(64)).decode())
             self._salsa_buffer.extend(new_salsa)
         nacho = self._salsa_buffer[:length]
         del self._salsa_buffer[:length]
@@ -350,14 +351,14 @@ class KDBXmlExtension:
         Returns an unprotected string.
         """
         tmp = base64.b64decode(string)
-        return str(xor(tmp, self._get_salsa(len(tmp))))
+        return xor(tmp, self._get_salsa(len(tmp))).decode()
 
     def _protect(self, string):
         """
         XORs the given `string` with the next salsa and base64 encodes it.
         Returns a protected string.
         """
-        tmp = str(xor(string, self._get_salsa(len(string))))
+        tmp = xor(string, self._get_salsa(len(string)))
         return base64.b64encode(tmp)
 
 class KDB4Reader(KDB4File, KDBXmlExtension):

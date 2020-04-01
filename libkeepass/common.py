@@ -110,7 +110,7 @@ class HeaderDictionary(dict):
 # file baseclass
 
 import io
-from crypto import sha256
+from .crypto import sha256
 
 class KDBFile(object):
     def __init__(self, stream=None, **credentials):
@@ -157,9 +157,9 @@ class KDBFile(object):
         raise NotImplementedError('The write_to() method was not implemented.')
 
     def add_credentials(self, **credentials):
-        if credentials.has_key('password'):
+        if 'password' in credentials:
             self.add_key_hash(sha256(credentials['password']))
-        if credentials.has_key('keyfile'):
+        if 'keyfile' in credentials:
             self.add_key_hash(load_keyfile(credentials['keyfile']))
 
     def clear_credentials(self):
@@ -209,6 +209,7 @@ class KDBFile(object):
 
 import base64
 import hashlib
+import binascii
 from lxml import etree
 
 def load_keyfile(filename):
@@ -253,7 +254,7 @@ def load_plain_keyfile(filename):
             return key
         # if the length is 64 bytes we assume the key is hex encoded
         if len(key) == 64:
-            return key.decode('hex')
+            return binascii.unhexlify(key)
         # anything else may be a file to hash for the key
         return sha256(key)
     raise IOError('Could not read keyfile.')
